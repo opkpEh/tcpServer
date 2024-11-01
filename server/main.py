@@ -20,7 +20,7 @@ def create_response(content):
         response += b"Content-Type: text/html\r\n"
         response += b"Content-Length: 23\r\n"
         response += b"\r\n"
-        response += b"<h1>404 Not Found</h1>"
+        response += b"<h1>404 Not Found</h1>\r\n"
         return response
     else:
         response = b"HTTP/1.1 200 OK\r\n"
