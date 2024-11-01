@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-import errno
 import socket
 from pynput import keyboard
 import os
