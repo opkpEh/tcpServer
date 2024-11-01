@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 import socket
-from pynput import keyboard
 import os
 import sys
 import threading
+import signal
+
 
 def get_file_content(filename):
     try:
@@ -12,42 +13,47 @@ def get_file_content(filename):
     except FileNotFoundError:
         return None
 
+
 def create_response(content):
     if content is None:
-        response= b"HTTP/1.1 404 Not Found\r\n"
+        response = b"HTTP/1.1 404 Not Found\r\n"
         response += b"Content-Type: text/html\r\n"
         response += b"Content-Length: 23\r\n"
         response += b"\r\n"
         response += b"<h1>404 Not Found</h1>"
         return response
-
     else:
-        response= b"HTTP/1.1 200 OK\r\n"
+        response = b"HTTP/1.1 200 OK\r\n"
         response += b"Content-Type: text/html\r\n"
         response += f"Content-Length: {len(content)}\r\n".encode()
         response += b"<h1>200 OK</h1>\r\n"
         response += b"\r\n"
         return response + content
 
-def on_press(key):
-    if key== keyboard.KeyCode.from_char('q'):
-        server_socket.close()
-        sys.exit(0)
 
 server_socket = socket.socket()
+shutdown_flag = threading.Event()
+
+
+def signal_handler(signum, frame):
+    print("\nShutdown signal received. Closing server...")
+    shutdown_flag.set()
+    server_socket.close()
+    sys.exit(0)
+
 
 def handle_client(client_socket, client_address, response):
     try:
         request = client_socket.recv(1024).decode()
         print(f'Handling connection from {client_address}')
-
         print(f'Received request from :{client_address}:\n{request}')
-        content= get_file_content(response)
+
+        content = get_file_content(response)
         http_response = create_response(content)
         client_socket.send(http_response)
 
     except Exception as e:
-        print(f'Error handling client {client_address}" {str(e)}')
+        print(f'Error handling client {client_address}: {str(e)}')
 
     finally:
         client_socket.close()
@@ -57,45 +63,41 @@ def handle_client(client_socket, client_address, response):
 def start_server(host='0.0.0.0', port=8080, response="response.html"):
     global server_socket
 
-    #to prevent the socket being left in time wait state
+    # To prevent the socket being left in time wait state
     server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
     try:
-        #the server is listening on port 8080 on any network
-        server_socket.bind(("0.0.0.0", 8080))
-
-        server_socket.listen(5)#server can have a backlog connection requests of 10
+        server_socket.bind((host, port))
+        server_socket.listen(5)
         print(f'Server listening on {host}:{port}')
+        print('Press Ctrl+C to shut down the server')
 
-        while True:
+        while not shutdown_flag.is_set():
             try:
                 client_socket, client_address = server_socket.accept()
                 print(f'Accepted connection from {client_address}')
 
-
-                #creating a new thread for client:
-                client_thread= threading.Thread(
+                client_thread = threading.Thread(
                     target=handle_client,
-                    args=(client_socket,client_address, response)
+                    args=(client_socket, client_address, response)
                 )
-
-                client_thread.daemon= True #Thread will close when the main program exits
+                client_thread.daemon = True
                 client_thread.start()
                 print(f'Started thread for client {client_socket}')
 
             except socket.error as e:
-                if e.errno == 9: # Bad file descriptor when socket is closed
+                if e.errno == 9:  # Bad file descriptor when socket is closed
                     break
                 else:
-                    print(f'Error accepting connection {e}')
+                    print(f'Error accepting connection: {e}')
 
     except KeyboardInterrupt:
-        print("Shutting down the server...")
+        print("\nShutdown signal received. Closing server...")
     finally:
         server_socket.close()
 
-if __name__ == '__main__':
 
+if __name__ == '__main__':
     if not os.path.exists('response.html'):
         with open('response.html', 'w') as f:
             f.write("""
@@ -113,8 +115,8 @@ if __name__ == '__main__':
     </html>
             """)
 
-    # start listening for keyboard inputs
-    listener = keyboard.Listener(on_press=on_press)
-    listener.start()
+    # Set up signal handlers for graceful shutdown
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
 
     start_server()
