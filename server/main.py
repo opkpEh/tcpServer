@@ -13,23 +13,20 @@ def get_file_content(filename):
     except FileNotFoundError:
         return None
 
-
 def create_response(content):
     if content is None:
         response = b"HTTP/1.1 404 Not Found\r\n"
         response += b"Content-Type: text/html\r\n"
         response += b"Content-Length: 23\r\n"
-        response += b"\r\n"
-        response += b"<h1>404 Not Found</h1>\r\n"
+        response += b"\r\n"  
+        response += b"<h1>404 Not Found</h1>"
         return response
     else:
         response = b"HTTP/1.1 200 OK\r\n"
         response += b"Content-Type: text/html\r\n"
         response += f"Content-Length: {len(content)}\r\n".encode()
-        response += b"<h1>200 OK</h1>\r\n"
-        response += b"\r\n"
+        response += b"\r\n" 
         return response + content
-
 
 server_socket = socket.socket()
 shutdown_flag = threading.Event()
